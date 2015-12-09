@@ -1,3 +1,6 @@
 [submodule "themes/pelican-twitchy"]
 	path = themes/pelican-twitchy
 	url = https://github.com/ingwinlu/pelican-twitchy
+[submodule "plugins/pelican-toc"]
+	path = plugins/pelican-toc
+	url = https://github.com/ingwinlu/pelican-toc

@@ -1,3 +1,7 @@
 ## python auto-generated files
-.pyc
+*.pyc
 __pycache__
+
+## pelican generated files
+*.pid
+output/

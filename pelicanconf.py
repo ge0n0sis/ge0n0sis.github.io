@@ -14,13 +14,14 @@ DEFAULT_LANG = 'en'
 
 # Plugins
 PLUGIN_PATHS = ['plugins']
-PLUGINS = [ ]
+PLUGINS = ['pelican-toc']
 
 # Static content
-STATIC_PATHS = ['images']
+STATIC_PATHS = ['static']
 
 # Theme
 THEME = 'themes/pelican-twitchy'
+PYGMENTS_STYLE = 'github'
 
 # Feed generation is usually not desired when developing
 FEED_ALL_ATOM = None
@@ -42,4 +43,4 @@ SOCIAL = [
 DEFAULT_PAGINATION = 10
 
 # Uncomment following line if you want document-relative URLs when developing
-#RELATIVE_URLS = True
+# RELATIVE_URLS = True
