@@ -1,0 +1,484 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>ge0n0sis.github.io</title><link href="https://ge0n0sis.github.io/" rel="alternate"></link><link href="https://ge0n0sis.github.io/feeds/seandroid.atom.xml" rel="self"></link><id>https://ge0n0sis.github.io/</id><updated>2015-12-22T00:00:00+01:00</updated><entry><title>Exploring Android's SELinux Kernel Policy</title><link href="https://ge0n0sis.github.io/posts/2015/12/exploring-androids-selinux-kernel-policy/" rel="alternate"></link><updated>2015-12-22T00:00:00+01:00</updated><author><name>Fernand LONE SANG</name></author><id>tag:ge0n0sis.github.io,2015-12-22:posts/2015/12/exploring-androids-selinux-kernel-policy/</id><summary type="html">&lt;div class="section" id="introduction"&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;Since Android 4.3, SELinux is part of the Security Enhancements for Android and
+contributes to the Android security model by enforcing mandatory access control
+over all processes and by confining privileged processes besides Linux's native
+discretionary access control.&lt;/p&gt;
+&lt;p&gt;This article focuses on Android's SELinux kernel policy. I explain in detail
+how SELinux statements are transformed into a binary file. I dissect briefly
+its file format and, I introduce a proof-of-concept tool I wrote, &lt;a class="reference external" href="https://github.com/ge0n0sis/sedump/"&gt;sedump&lt;/a&gt;, to get back SELinux equivalent
+statements from a binary file extracted from an Android ROM for instance.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="section" id="building-android-sepolicy"&gt;
+&lt;h2 id="building-android-sepolicy"&gt;Building Android sepolicy&lt;/h2&gt;
+&lt;p&gt;The journey begins with understanding how Android's SELinux kernel policy
+is generated. Source files required to build Android's &lt;cite&gt;sepolicy&lt;/cite&gt; can be
+downloaded either from the &lt;cite&gt;Android Source Tree&lt;/cite&gt; (&lt;a class="reference external" href="https://android.googlesource.com/platform/external/sepolicy"&gt;external/sepolicy&lt;/a&gt;) or from the
+&lt;cite&gt;Security Enhancements (SE) for Android&lt;/cite&gt; repositories (&lt;a class="reference external" href="https://bitbucket.org/seandroid/external-sepolicy/"&gt;external-sepolicy&lt;/a&gt;).&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;$ &lt;/span&gt;git clone https://android.googlesource.com/platform/external/sepolicy
+&lt;span class="nv"&gt;$ &lt;/span&gt;&lt;span class="nb"&gt;cd &lt;/span&gt;sepolicy
+&lt;span class="nv"&gt;$ &lt;/span&gt;ls
+access_vectors          bluetoothdomain.te  dnsmasq.te            &lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+adbd.te                 bluetooth.te        domain_deprecated.te  &lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+Android.mk              bootanim.te         domain.te             &lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Like any other Android project, rules to build output files are described
+inside a make file named &lt;tt class="docutils literal"&gt;Android.mk&lt;/tt&gt;. Let us dissect that file, especially
+rules to build the &lt;code class="bash"&gt;sepolicy&lt;/code&gt; target:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;POLICYVERS ?&lt;span class="o"&gt;=&lt;/span&gt; 29
+&lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+LOCAL_MODULE :&lt;span class="o"&gt;=&lt;/span&gt; sepolicy
+LOCAL_MODULE_CLASS :&lt;span class="o"&gt;=&lt;/span&gt; ETC
+LOCAL_MODULE_TAGS :&lt;span class="o"&gt;=&lt;/span&gt; optional
+LOCAL_MODULE_PATH :&lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;$(&lt;/span&gt;TARGET_ROOT_OUT&lt;span class="k"&gt;)&lt;/span&gt;
+
+include &lt;span class="k"&gt;$(&lt;/span&gt;BUILD_SYSTEM&lt;span class="k"&gt;)&lt;/span&gt;/base_rules.mk
+sepolicy_policy.conf :&lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;$(&lt;/span&gt;intermediates&lt;span class="k"&gt;)&lt;/span&gt;/policy.conf
+&lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;span class="k"&gt;$(&lt;/span&gt;LOCAL_BUILT_MODULE&lt;span class="k"&gt;)&lt;/span&gt;: &lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_policy.conf&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="k"&gt;$(&lt;/span&gt;HOST_OUT_EXECUTABLES&lt;span class="k"&gt;)&lt;/span&gt;/checkpolicy
+    @mkdir -p &lt;span class="k"&gt;$(&lt;/span&gt;dir &lt;span class="nv"&gt;$@&lt;/span&gt;&lt;span class="k"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;$(&lt;/span&gt;hide&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="k"&gt;$(&lt;/span&gt;HOST_OUT_EXECUTABLES&lt;span class="k"&gt;)&lt;/span&gt;/checkpolicy -M -c &lt;span class="k"&gt;$(&lt;/span&gt;POLICYVERS&lt;span class="k"&gt;)&lt;/span&gt; -o &lt;span class="nv"&gt;$@&lt;/span&gt; &lt;span class="nv"&gt;$&amp;lt;&lt;/span&gt;
+    &lt;span class="k"&gt;$(&lt;/span&gt;hide&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="k"&gt;$(&lt;/span&gt;HOST_OUT_EXECUTABLES&lt;span class="k"&gt;)&lt;/span&gt;/checkpolicy -M -c &lt;span class="k"&gt;$(&lt;/span&gt;POLICYVERS&lt;span class="k"&gt;)&lt;/span&gt; -o &lt;span class="se"&gt;\&lt;/span&gt;
+        &lt;span class="k"&gt;$(&lt;/span&gt;dir &lt;span class="nv"&gt;$&amp;lt;&lt;/span&gt;&lt;span class="k"&gt;)&lt;/span&gt;/&lt;span class="k"&gt;$(&lt;/span&gt;notdir &lt;span class="nv"&gt;$@&lt;/span&gt;&lt;span class="k"&gt;)&lt;/span&gt;.dontaudit &lt;span class="nv"&gt;$&amp;lt;&lt;/span&gt;.dontaudit
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;When run, the &lt;code class="bash"&gt;sepolicy&lt;/code&gt; target outputs two files, &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; and
+&lt;tt class="docutils literal"&gt;sepolicy.dontaudit&lt;/tt&gt;, into the &lt;code class="bash"&gt;&lt;span class="k"&gt;$(&lt;/span&gt;intermediates&lt;span class="k"&gt;)&lt;/span&gt;&lt;/code&gt; folder defined by the
+Android build system. These two files are generated with &lt;tt class="docutils literal"&gt;checkpolicy&lt;/tt&gt; by
+providing respectively &lt;code class="bash"&gt;&lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_policy.conf&lt;span class="k"&gt;)&lt;/span&gt;&lt;/code&gt; and
+&lt;code class="bash"&gt;&lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_policy.conf&lt;span class="k"&gt;)&lt;/span&gt;.dontaudit&lt;/code&gt; as input.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;MLS_SENS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;1
+&lt;span class="nv"&gt;MLS_CATS&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;1024
+&lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+sepolicy_policy.conf :&lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;$(&lt;/span&gt;intermediates&lt;span class="k"&gt;)&lt;/span&gt;/policy.conf
+&lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_policy.conf&lt;span class="k"&gt;)&lt;/span&gt;: PRIVATE_MLS_SENS :&lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;$(&lt;/span&gt;MLS_SENS&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_policy.conf&lt;span class="k"&gt;)&lt;/span&gt;: PRIVATE_MLS_CATS :&lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;$(&lt;/span&gt;MLS_CATS&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_policy.conf&lt;span class="k"&gt;)&lt;/span&gt;: PRIVATE_ADDITIONAL_M4DEFS :&lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="k"&gt;$(&lt;/span&gt;LOCAL_ADDITIONAL_M4DEFS&lt;span class="k"&gt;)&lt;/span&gt;
+&lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_policy.conf&lt;span class="k"&gt;)&lt;/span&gt;: &lt;span class="k"&gt;$(&lt;/span&gt;call build_policy, &lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_build_files&lt;span class="k"&gt;))&lt;/span&gt;
+    @mkdir -p &lt;span class="k"&gt;$(&lt;/span&gt;dir &lt;span class="nv"&gt;$@&lt;/span&gt;&lt;span class="k"&gt;)&lt;/span&gt;
+    &lt;span class="k"&gt;$(&lt;/span&gt;hide&lt;span class="k"&gt;)&lt;/span&gt; m4 &lt;span class="k"&gt;$(&lt;/span&gt;PRIVATE_ADDITIONAL_M4DEFS&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="se"&gt;\&lt;/span&gt;
+        -D &lt;span class="nv"&gt;mls_num_sens&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;PRIVATE_MLS_SENS&lt;span class="k"&gt;)&lt;/span&gt; -D &lt;span class="nv"&gt;mls_num_cats&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;PRIVATE_MLS_CATS&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="se"&gt;\&lt;/span&gt;
+        -D &lt;span class="nv"&gt;target_build_variant&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="k"&gt;$(&lt;/span&gt;TARGET_BUILD_VARIANT&lt;span class="k"&gt;)&lt;/span&gt; &lt;span class="se"&gt;\&lt;/span&gt;
+        -s &lt;span class="nv"&gt;$^&lt;/span&gt; &amp;gt; &lt;span class="nv"&gt;$@&lt;/span&gt;
+    &lt;span class="k"&gt;$(&lt;/span&gt;hide&lt;span class="k"&gt;)&lt;/span&gt; sed &lt;span class="s1"&gt;'/dontaudit/d'&lt;/span&gt; &lt;span class="nv"&gt;$@&lt;/span&gt; &amp;gt; &lt;span class="nv"&gt;$@&lt;/span&gt;.dontaudit
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;The &lt;code class="bash"&gt;sepolicy_policy.conf&lt;/code&gt; target outputs two files,
+&lt;code class="bash"&gt;&lt;span class="k"&gt;$(&lt;/span&gt;intermediates&lt;span class="k"&gt;)&lt;/span&gt;/policy.conf&lt;/code&gt; and &lt;code class="bash"&gt;&lt;span class="k"&gt;$(&lt;/span&gt;intermediates&lt;span class="k"&gt;)&lt;/span&gt;/policy.conf.dontaudit&lt;/code&gt;.
+The general-purpose macro processor M4 expands files listed in the
+&lt;code class="bash"&gt;&lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_build_files&lt;span class="k"&gt;)&lt;/span&gt;&lt;/code&gt; variable in order to generate &lt;tt class="docutils literal"&gt;policy.conf&lt;/tt&gt; and
+its stripped off version &lt;tt class="docutils literal"&gt;policy.conf.dontaudit&lt;/tt&gt;.
+&lt;code class="bash"&gt;&lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_build_files&lt;span class="k"&gt;)&lt;/span&gt;&lt;/code&gt; simply lists all source files required to build the
+Android SELinux kernel policy:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;sepolicy_build_files :&lt;span class="o"&gt;=&lt;/span&gt; security_classes initial_sids access_vectors &lt;span class="se"&gt;\&lt;/span&gt;
+    global_macros neverallow_macros mls_macros mls policy_capabilities &lt;span class="se"&gt;\&lt;/span&gt;
+    te_macros attributes ioctl_macros *.te roles users initial_sid_contexts &lt;span class="se"&gt;\&lt;/span&gt;
+    fs_use genfs_contexts port_contexts
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Let us precise that this file list can be overriden with board specific files
+while executing &lt;code class="bash"&gt;&lt;span class="k"&gt;$(&lt;/span&gt;call build_policy, &lt;span class="k"&gt;$(&lt;/span&gt;sepolicy_build_files&lt;span class="k"&gt;))&lt;/span&gt;&lt;/code&gt;. This is
+an expected behaviour in Android build system when defining &lt;code class="bash"&gt;BOARD_SEPOLICY_*&lt;/code&gt;
+variables.&lt;/p&gt;
+&lt;p&gt;All the brick put back together, one can generate easily a &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; file outside
+of Android build system. &lt;tt class="docutils literal"&gt;checkpolicy&lt;/tt&gt; is not an android-specific tool, thus
+one provided with the &lt;a class="reference external" href="https://github.com/TresysTechnology/setools3"&gt;setools&lt;/a&gt;
+package in your default Linux distribution should be enough:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;$ &lt;/span&gt;sudo apt-get install m4 setools
+&lt;span class="nv"&gt;$ &lt;/span&gt;m4 -D &lt;span class="nv"&gt;mls_num_sens&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt; -D &lt;span class="nv"&gt;mls_num_cats&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="m"&gt;1024&lt;/span&gt; -D &lt;span class="nv"&gt;target_build_variant&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;user &lt;span class="se"&gt;\&lt;/span&gt;
+     -s security_classes initial_sids access_vectors global_macros &lt;span class="se"&gt;\&lt;/span&gt;
+        neverallow_macros mls_macros mls policy_capabilities te_macros &lt;span class="se"&gt;\&lt;/span&gt;
+        attributes ioctl_macros *.te roles users initial_sid_contexts &lt;span class="se"&gt;\&lt;/span&gt;
+        fs_use genfs_contexts port_contexts &amp;gt; policy.conf
+&lt;span class="nv"&gt;$ &lt;/span&gt;checkpolicy -h
+usage:  checkpolicy &lt;span class="o"&gt;[&lt;/span&gt;-b&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;-d&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;-U handle_unknown &lt;span class="o"&gt;(&lt;/span&gt;allow,deny,reject&lt;span class="o"&gt;)]&lt;/span&gt; &lt;span class="se"&gt;\&lt;/span&gt;
+                    &lt;span class="o"&gt;[&lt;/span&gt;-M&lt;span class="o"&gt;][&lt;/span&gt;-c policyvers &lt;span class="o"&gt;(&lt;/span&gt;15-29&lt;span class="o"&gt;)]&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;-o output_file&lt;span class="o"&gt;]&lt;/span&gt;      &lt;span class="se"&gt;\&lt;/span&gt;
+                    &lt;span class="o"&gt;[&lt;/span&gt;-t target_platform &lt;span class="o"&gt;(&lt;/span&gt;selinux,xen&lt;span class="o"&gt;)]&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;input_file&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;span class="nv"&gt;$ &lt;/span&gt;checkpolicy -M -c &lt;span class="m"&gt;29&lt;/span&gt; -o sepolicy policy.conf
+checkpolicy:  loading policy configuration from policy.conf
+checkpolicy:  policy configuration loaded
+checkpolicy:  writing binary representation &lt;span class="o"&gt;(&lt;/span&gt;version 29&lt;span class="o"&gt;)&lt;/span&gt; to sepolicy
+&lt;span class="nv"&gt;$ &lt;/span&gt;file sepolicy
+sepolicy: SE Linux policy v29 MLS &lt;span class="m"&gt;8&lt;/span&gt; symbols &lt;span class="m"&gt;7&lt;/span&gt; ocons
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;&lt;tt class="docutils literal"&gt;checkpolicy&lt;/tt&gt; accepts numerous options. The &lt;code class="bash"&gt;-M&lt;/code&gt; option is a flag to
+indicate that the compiled policy should embed multi-level security
+statements and the &lt;code class="bash"&gt;-c&lt;/code&gt; specifies the policy version.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="section" id="understanding-the-selinux-kernel-policy-file-format"&gt;
+&lt;h2 id="understanding-the-selinux-kernel-policy-file-format"&gt;Understanding the SELinux Kernel Policy File Format&lt;/h2&gt;
+&lt;p&gt;Let us dig the subject deeper by understanding how the SELinux textual
+statements are transformed into a binary kernel policy. Unfortunately for us,
+the SELinux kernel policy file format is not documented, probably because it is
+a complex format which depends heavily on the policy version.&lt;/p&gt;
+&lt;p&gt;The main entry point for &lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/"&gt;checkpolicy&lt;/a&gt; is
+located in &lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/checkpolicy.c"&gt;checkpolicy.c&lt;/a&gt;.
+In a few words, a SELinux policy is represented in memory by a &lt;code class="cpp"&gt;&lt;span class="kt"&gt;policydb_t&lt;/span&gt;&lt;/code&gt; data
+structure. It is zeroed and initialized by the &lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/checkpolicy.c#571"&gt;policydb_init()&lt;/a&gt;
+method, and its members are set while parsing SELinux statements using LEX and
+YACC (&lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/policy_scan.l"&gt;policy_scan.l&lt;/a&gt;
+and &lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/policy_parse.y"&gt;policy_parse.y&lt;/a&gt;)
+in &lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/checkpolicy.c#583"&gt;read_source_policy()&lt;/a&gt;.
+Once fully parsed, &lt;tt class="docutils literal"&gt;checkpolicy&lt;/tt&gt; outputs the resulting SELinux kernel policy
+binary to the path specified in the command line. The method &lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/checkpolicy.c#632"&gt;policydb_write()&lt;/a&gt;
+is in charge of writing a &lt;code class="cpp"&gt;&lt;span class="kt"&gt;policydb_t&lt;/span&gt;&lt;/code&gt; on the disk.&lt;/p&gt;
+&lt;p&gt;I deliberately skip the parsing of the SELinux statement and I assume that the
+policy has been loaded and the &lt;code class="cpp"&gt;&lt;span class="kt"&gt;policydb_t&lt;/span&gt;&lt;/code&gt; data structure is ready to be
+written on the disk. The following listing handles writing the binary policy on
+the disk:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="k"&gt;struct&lt;/span&gt; &lt;span class="n"&gt;policy_file&lt;/span&gt; &lt;span class="n"&gt;pf&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;[...]&lt;/span&gt;
+&lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;outfile&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="n"&gt;outfp&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;fopen&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;outfile&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="s"&gt;"w"&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+    &lt;span class="p"&gt;[...]&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="o"&gt;!&lt;/span&gt;&lt;span class="n"&gt;cil&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="n"&gt;printf&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;"%s:  writing binary representation (version %d) to %s&lt;/span&gt;&lt;span class="se"&gt;\n&lt;/span&gt;&lt;span class="s"&gt;"&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt;
+               &lt;span class="n"&gt;argv&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;],&lt;/span&gt; &lt;span class="n"&gt;policyvers&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="n"&gt;outfile&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+        &lt;span class="n"&gt;policydb&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;policy_type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;POLICY_KERN&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+
+        &lt;span class="n"&gt;policy_file_init&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="n"&gt;pf&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+        &lt;span class="n"&gt;pf&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;type&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;PF_USE_STDIO&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        &lt;span class="n"&gt;pf&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;fp&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;outfp&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        &lt;span class="n"&gt;ret&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="n"&gt;policydb_write&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="n"&gt;policydb&lt;/span&gt;&lt;span class="p"&gt;,&lt;/span&gt; &lt;span class="o"&gt;&amp;amp;&lt;/span&gt;&lt;span class="n"&gt;pf&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+        &lt;span class="p"&gt;[...]&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="k"&gt;else&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+        &lt;span class="p"&gt;[...]&lt;/span&gt;
+    &lt;span class="p"&gt;}&lt;/span&gt;
+    &lt;span class="n"&gt;fclose&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;outfp&lt;/span&gt;&lt;span class="p"&gt;);&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;&lt;code class="cpp"&gt;&lt;span class="n"&gt;policydb_write&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;/code&gt; expects two arguments: a reference to a
+&lt;code class="cpp"&gt;&lt;span class="kt"&gt;policydb_t&lt;/span&gt;&lt;/code&gt; data structure and a reference to a &lt;code class="cpp"&gt;&lt;span class="k"&gt;struct&lt;/span&gt;
+&lt;span class="n"&gt;policy_file&lt;/span&gt;&lt;/code&gt;. The later is an abstration layer for possible input or output
+formats (memory-mapped memory or basic I/O). The &lt;code class="cpp"&gt;&lt;span class="k"&gt;struct&lt;/span&gt; &lt;span class="n"&gt;policy_file&lt;/span&gt;&lt;/code&gt; is
+defined as follows in &lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/libsepol/include/sepol/policydb/policydb.h#664"&gt;libsepol&lt;/a&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="cm"&gt;/* A policy "file" may be a memory region referenced by a (data, len) pair&lt;/span&gt;
+&lt;span class="cm"&gt;   or a file referenced by a FILE pointer. */&lt;/span&gt;
+&lt;span class="k"&gt;typedef&lt;/span&gt; &lt;span class="k"&gt;struct&lt;/span&gt; &lt;span class="n"&gt;policy_file&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+&lt;span class="cp"&gt;#define PF_USE_MEMORY  0&lt;/span&gt;
+&lt;span class="cp"&gt;#define PF_USE_STDIO   1&lt;/span&gt;
+&lt;span class="cp"&gt;#define PF_LEN         2 &lt;/span&gt;&lt;span class="cm"&gt;/* total up length in len field */&lt;/span&gt;&lt;span class="cp"&gt;&lt;/span&gt;
+    &lt;span class="kt"&gt;unsigned&lt;/span&gt; &lt;span class="n"&gt;type&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="kt"&gt;char&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;data&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="kt"&gt;size_t&lt;/span&gt; &lt;span class="n"&gt;len&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="kt"&gt;size_t&lt;/span&gt; &lt;span class="n"&gt;size&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="kt"&gt;FILE&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;fp&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;struct&lt;/span&gt; &lt;span class="n"&gt;sepol_handle&lt;/span&gt; &lt;span class="o"&gt;*&lt;/span&gt;&lt;span class="n"&gt;handle&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="kt"&gt;policy_file_t&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Let us focus now on &lt;code class="cpp"&gt;&lt;span class="n"&gt;policydb_write&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;/code&gt; (defined in &lt;a class="reference external" href="http://androidxref.com/6.0.0_r0/xref/external/selinux/libsepol/src/write.c#1942"&gt;libsepol/src/write.c&lt;/a&gt;)
+to understand the format of the binary policy. SELinux policies can be
+defined via a SELinux kernel policy or a SELinux module policy: as we are
+only interested in SELinux kernel policies, one can focus only on code
+path satisfying &lt;code class="cpp"&gt;&lt;span class="n"&gt;p&lt;/span&gt;&lt;span class="o"&gt;-&amp;gt;&lt;/span&gt;&lt;span class="n"&gt;policy_type&lt;/span&gt; &lt;span class="o"&gt;==&lt;/span&gt; &lt;span class="n"&gt;POLICY_KERN&lt;/span&gt;&lt;/code&gt; in the source code.&lt;/p&gt;
+&lt;p&gt;&lt;code class="cpp"&gt;&lt;span class="n"&gt;policydb_write&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;/code&gt; begins an SELinux kernel policy binary with a &lt;em&gt;magic&lt;/em&gt;
+number that holds the type of policy. It writes then information related to
+policy compatibility: the &lt;em&gt;length&lt;/em&gt; of a standardized string identifier and the
+&lt;em&gt;string identifier&lt;/em&gt; itself ("SE Linux" or "XenFlask" or "SELinux Module"), the
+&lt;em&gt;policy version&lt;/em&gt; number, the &lt;em&gt;configuration&lt;/em&gt; (e.g, MLS policy or not), the
+&lt;em&gt;symbol array&lt;/em&gt; and &lt;em&gt;object context array&lt;/em&gt; sizes. To illustrate the file format,
+I wrote an incomplete 010Editor template that parses the SELinux kernel policy
+header.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="err"&gt;$&lt;/span&gt; &lt;span class="n"&gt;cat&lt;/span&gt; &lt;span class="n"&gt;SELinux&lt;/span&gt;&lt;span class="p"&gt;.&lt;/span&gt;&lt;span class="n"&gt;bt&lt;/span&gt;
+&lt;span class="k"&gt;typedef&lt;/span&gt; &lt;span class="k"&gt;enum&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;&lt;/span&gt;&lt;span class="n"&gt;uint&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="n"&gt;MLS&lt;/span&gt;    &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="mi"&gt;1&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="n"&gt;CONFIG&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+
+&lt;span class="k"&gt;typedef&lt;/span&gt; &lt;span class="k"&gt;struct&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="n"&gt;uint&lt;/span&gt; &lt;span class="n"&gt;magic&lt;/span&gt; &lt;span class="o"&gt;&amp;lt;&lt;/span&gt;&lt;span class="n"&gt;format&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;&lt;span class="n"&gt;hex&lt;/span&gt;&lt;span class="o"&gt;&amp;gt;&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt; &lt;span class="c1"&gt;// 0xf97cff8c (SELINUX_MAGIC) or 0xf97cff8d (SELINUX_MOD_MAGIC)&lt;/span&gt;
+    &lt;span class="n"&gt;uint&lt;/span&gt; &lt;span class="n"&gt;target_len&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="n"&gt;target_len&lt;/span&gt; &lt;span class="o"&gt;&amp;gt;&lt;/span&gt; &lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;)&lt;/span&gt;
+        &lt;span class="n"&gt;uchar&lt;/span&gt; &lt;span class="n"&gt;target&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="n"&gt;target_len&lt;/span&gt;&lt;span class="p"&gt;];&lt;/span&gt; &lt;span class="c1"&gt;// "SE Linux" or "XenFlask" or "SELinux Module"&lt;/span&gt;
+    &lt;span class="n"&gt;uint&lt;/span&gt; &lt;span class="n"&gt;version&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="n"&gt;CONFIG&lt;/span&gt; &lt;span class="n"&gt;config&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="n"&gt;uint&lt;/span&gt; &lt;span class="n"&gt;sym_num&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="n"&gt;uint&lt;/span&gt; &lt;span class="n"&gt;ocon_num&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="n"&gt;SELinuxPolicyHeader&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+
+&lt;span class="k"&gt;typedef&lt;/span&gt; &lt;span class="k"&gt;struct&lt;/span&gt; &lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="n"&gt;SELinuxPolicyHeader&lt;/span&gt; &lt;span class="n"&gt;header&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt; &lt;span class="n"&gt;SELinuxPolicy&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+
+&lt;span class="n"&gt;LittleEndian&lt;/span&gt;&lt;span class="p"&gt;();&lt;/span&gt;
+&lt;span class="k"&gt;while&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="o"&gt;!&lt;/span&gt;&lt;span class="n"&gt;FEof&lt;/span&gt;&lt;span class="p"&gt;())&lt;/span&gt;
+&lt;span class="p"&gt;{&lt;/span&gt;
+    &lt;span class="n"&gt;SELinuxPolicy&lt;/span&gt; &lt;span class="n"&gt;policy&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="n"&gt;Warning&lt;/span&gt;&lt;span class="p"&gt;(&lt;/span&gt;&lt;span class="s"&gt;"Incomplete template, stopped."&lt;/span&gt; &lt;span class="p"&gt;);&lt;/span&gt;
+    &lt;span class="k"&gt;return&lt;/span&gt; &lt;span class="o"&gt;-&lt;/span&gt;&lt;span class="mi"&gt;1&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="p"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Using &lt;a class="reference external" href="https://github.com/d0c-s4vage/pfp"&gt;Python format parser (pfp)&lt;/a&gt;, one
+can dissect an &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; header with the above mentionned template. As
+expected, we manage to retrieve the same piece of information as &lt;tt class="docutils literal"&gt;file&lt;/tt&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;$ &lt;/span&gt;cat pfp-parse.py
+import sys, pfp
+
+&lt;span class="nv"&gt;dom&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; pfp.parse&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;data_file&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;sys.argv&lt;span class="o"&gt;[&lt;/span&gt;1&lt;span class="o"&gt;]&lt;/span&gt;, &lt;span class="nv"&gt;template_file&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;sys.argv&lt;span class="o"&gt;[&lt;/span&gt;2&lt;span class="o"&gt;])&lt;/span&gt;
+print&lt;span class="o"&gt;(&lt;/span&gt;dom._pfp__show&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nv"&gt;include_offset&lt;/span&gt;&lt;span class="o"&gt;=&lt;/span&gt;True&lt;span class="o"&gt;))&lt;/span&gt;
+&lt;span class="nv"&gt;$ &lt;/span&gt;python fpf-parse.py sepolicy SELinuxPolicy.bt
+&lt;span class="m"&gt;0000&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+    &lt;span class="m"&gt;0000&lt;/span&gt; &lt;span class="nv"&gt;policy&lt;/span&gt;     &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="m"&gt;0000&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+        &lt;span class="m"&gt;0000&lt;/span&gt; &lt;span class="nv"&gt;header&lt;/span&gt;     &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="m"&gt;0000&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+            &lt;span class="m"&gt;0000&lt;/span&gt; &lt;span class="nv"&gt;magic&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;4185718668&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;f97cff8c&lt;span class="o"&gt;])&lt;/span&gt;
+            &lt;span class="m"&gt;0004&lt;/span&gt; &lt;span class="nv"&gt;target_len&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;8&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000008&lt;span class="o"&gt;])&lt;/span&gt;
+            &lt;span class="m"&gt;0008&lt;/span&gt; &lt;span class="nv"&gt;target&lt;/span&gt;     &lt;span class="o"&gt;=&lt;/span&gt; UChar&lt;span class="o"&gt;[&lt;/span&gt;8&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;'SE Linux'&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+            &lt;span class="m"&gt;0010&lt;/span&gt; &lt;span class="nv"&gt;version&lt;/span&gt;    &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;29&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;0000001d&lt;span class="o"&gt;])&lt;/span&gt;
+            &lt;span class="m"&gt;0014&lt;/span&gt; &lt;span class="nv"&gt;config&lt;/span&gt;     &lt;span class="o"&gt;=&lt;/span&gt; Enum&amp;lt;UInt&amp;gt;&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000001&lt;span class="o"&gt;])(&lt;/span&gt;MLS&lt;span class="o"&gt;)&lt;/span&gt;
+            &lt;span class="m"&gt;0018&lt;/span&gt; &lt;span class="nv"&gt;sym_num&lt;/span&gt;    &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;8&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000008&lt;span class="o"&gt;])&lt;/span&gt;
+            001c &lt;span class="nv"&gt;ocon_num&lt;/span&gt;   &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;7&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000007&lt;span class="o"&gt;])&lt;/span&gt;
+        &lt;span class="o"&gt;}&lt;/span&gt;
+    &lt;span class="o"&gt;}&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt;
+&lt;span class="nv"&gt;$ &lt;/span&gt;file sepolicy
+sepolicy: SE Linux policy v29 MLS &lt;span class="m"&gt;8&lt;/span&gt; symbols &lt;span class="m"&gt;7&lt;/span&gt; ocons
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;The SELinux kernel policy header is followed by two serialized &lt;code class="cpp"&gt;&lt;span class="kt"&gt;ebitmap_t&lt;/span&gt;&lt;/code&gt;
+(&lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/libsepol/src/ebitmap.c"&gt;libsepol/ebitmap.c&lt;/a&gt;):
+on that stores &lt;code&gt;polcap&lt;/code&gt; statements and another one for &lt;code&gt;permissive&lt;/code&gt;
+statements. To output these bitmaps, the template has been updated with the
+following:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;$ &lt;/span&gt;cat SELinuxPolicy.bt
+&lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt; SELinuxPolicyHeader&lt;span class="p"&gt;;&lt;/span&gt;
+
+typedef struct &lt;span class="o"&gt;{&lt;/span&gt;
+    uint   start&lt;span class="p"&gt;;&lt;/span&gt;
+    uint64 bits&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt; BITMAP&lt;span class="p"&gt;;&lt;/span&gt;
+
+typedef struct &lt;span class="o"&gt;{&lt;/span&gt;
+    uint size&lt;span class="p"&gt;;&lt;/span&gt;
+    uint highbit&lt;span class="p"&gt;;&lt;/span&gt;
+    uint count&lt;span class="p"&gt;;&lt;/span&gt;
+    BITMAP node&lt;span class="o"&gt;[&lt;/span&gt;count&lt;span class="o"&gt;]&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt; SELinuxPolicyEBitmap&lt;span class="p"&gt;;&lt;/span&gt;
+
+typedef struct &lt;span class="o"&gt;{&lt;/span&gt;
+    SELinuxPolicyHeader  header&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;header.version &amp;gt;&lt;span class="o"&gt;=&lt;/span&gt; 22&lt;span class="o"&gt;)&lt;/span&gt;
+        SELinuxPolicyEBitmap polcap&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;header.version &amp;gt;&lt;span class="o"&gt;=&lt;/span&gt; 23&lt;span class="o"&gt;)&lt;/span&gt;
+        SELinuxPolicyEBitmap permissive&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt; SELinuxPolicy&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;span class="nv"&gt;$ &lt;/span&gt;python fpf-parse.py sepolicy SELinuxPolicy.bt
+&lt;span class="m"&gt;0000&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+    &lt;span class="m"&gt;0000&lt;/span&gt; &lt;span class="nv"&gt;policy&lt;/span&gt;     &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="m"&gt;0000&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+        &lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+        &lt;span class="m"&gt;0020&lt;/span&gt; &lt;span class="nv"&gt;polcap&lt;/span&gt;     &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="m"&gt;0020&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+            &lt;span class="m"&gt;0020&lt;/span&gt; &lt;span class="nv"&gt;size&lt;/span&gt;       &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;64&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000040&lt;span class="o"&gt;])&lt;/span&gt;
+            &lt;span class="m"&gt;0024&lt;/span&gt; &lt;span class="nv"&gt;highbit&lt;/span&gt;    &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;64&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000040&lt;span class="o"&gt;])&lt;/span&gt;
+            &lt;span class="m"&gt;0028&lt;/span&gt; &lt;span class="nv"&gt;count&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;1&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000001&lt;span class="o"&gt;])&lt;/span&gt;
+            002c &lt;span class="nv"&gt;node&lt;/span&gt;       &lt;span class="o"&gt;=&lt;/span&gt; BITMAP&lt;span class="o"&gt;[&lt;/span&gt;1&lt;span class="o"&gt;]&lt;/span&gt;
+                002c node&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; 002c struct &lt;span class="o"&gt;{&lt;/span&gt;
+                        002c &lt;span class="nv"&gt;start&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;0&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000000&lt;span class="o"&gt;])&lt;/span&gt;
+                        &lt;span class="m"&gt;0030&lt;/span&gt; &lt;span class="nv"&gt;bits&lt;/span&gt;       &lt;span class="o"&gt;=&lt;/span&gt; UInt64&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;3&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;0000000000000003&lt;span class="o"&gt;])&lt;/span&gt;
+                    &lt;span class="o"&gt;}&lt;/span&gt;
+        &lt;span class="o"&gt;}&lt;/span&gt;
+        &lt;span class="m"&gt;0038&lt;/span&gt; &lt;span class="nv"&gt;permissive&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="m"&gt;0038&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+            &lt;span class="m"&gt;0038&lt;/span&gt; &lt;span class="nv"&gt;size&lt;/span&gt;       &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;64&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000040&lt;span class="o"&gt;])&lt;/span&gt;
+            003c &lt;span class="nv"&gt;highbit&lt;/span&gt;    &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;0&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000000&lt;span class="o"&gt;])&lt;/span&gt;
+            &lt;span class="m"&gt;0040&lt;/span&gt; &lt;span class="nv"&gt;count&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;0&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000000&lt;span class="o"&gt;])&lt;/span&gt;
+            &lt;span class="m"&gt;0044&lt;/span&gt; &lt;span class="nv"&gt;node&lt;/span&gt;       &lt;span class="o"&gt;=&lt;/span&gt; BITMAP&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt;
+        &lt;span class="o"&gt;}&lt;/span&gt;
+    &lt;span class="o"&gt;}&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;In AOSP, &lt;cite&gt;policycap&lt;/cite&gt; statements are defined in &lt;a class="reference external" href="https://android.googlesource.com/platform/external/sepolicy/+/master/policy_capabilities"&gt;policy_capabilities&lt;/a&gt;.
+There are two policy capability defined, &lt;code&gt;network_peer_controls&lt;/code&gt; and
+&lt;code&gt;open_perms&lt;/code&gt;, which is consistent with the above displayed bitmap and the
+meaning of each bit defined in &lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/libsepol/src/polcaps.c#16"&gt;libsepol/polcaps.c&lt;/a&gt;.
+Furthermore, no permissive type is defined in the AOSP SELinux configuration
+which likely explain the empty bitmap for &lt;tt class="docutils literal"&gt;permissive&lt;/tt&gt;.&lt;/p&gt;
+&lt;p&gt;Unfortunately, the remaining SELinux kernel policy is a bit tedious to explain
+as there are many data structures involved and to serialize:
+&lt;code class="cpp"&gt;&lt;span class="n"&gt;policydb_write&lt;/span&gt;&lt;span class="p"&gt;()&lt;/span&gt;&lt;/code&gt; outputs identifiers declarations (common, types,
+attributes, etc.) and the defined access vector rules (allow, deny, dontaudit,
+etc. rules.). Let us detail the serialization of common permission sets.&lt;/p&gt;
+&lt;p&gt;Common permission sets are stored in the &lt;code class="cpp"&gt;&lt;span class="kt"&gt;policydb_t&lt;/span&gt;&lt;/code&gt; data structure in
+the &lt;code class="cpp"&gt;&lt;span class="n"&gt;symtable&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;].&lt;/span&gt;&lt;span class="n"&gt;table&lt;/span&gt;&lt;/code&gt; field. It is a hash table with the common
+permission set identifier as key and a reference to a &lt;code class="cpp"&gt;&lt;span class="kt"&gt;common_datum_t&lt;/span&gt;&lt;/code&gt; as
+value. The latter is a structure with a &lt;code class="cpp"&gt;&lt;span class="kt"&gt;datum_t&lt;/span&gt;&lt;/code&gt; (i.e., index) and an
+hash table listing the permission associated with the common identifier. All
+these structures are defined in &lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/libsepol/include/sepol/policydb/policydb.h#106"&gt;libsepol/sepol/policydb/policydb.h&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;In &lt;tt class="docutils literal"&gt;libsepol&lt;/tt&gt;, &lt;code class="cpp"&gt;&lt;span class="kt"&gt;hashtab_t&lt;/span&gt;&lt;/code&gt; hash tables are all serialized in the same
+way. The serialized structure contains a &lt;code class="cpp"&gt;&lt;span class="n"&gt;nprim&lt;/span&gt;&lt;/code&gt; member, keys and values
+of the hash table and additionnally &lt;code class="cpp"&gt;&lt;span class="n"&gt;nelem&lt;/span&gt;&lt;/code&gt;, representing the number of
+elements stored in the hash table. These members can be found in the serialized
+&lt;code class="cpp"&gt;&lt;span class="n"&gt;symtable&lt;/span&gt;&lt;span class="p"&gt;[&lt;/span&gt;&lt;span class="mi"&gt;0&lt;/span&gt;&lt;span class="p"&gt;].&lt;/span&gt;&lt;span class="n"&gt;table&lt;/span&gt;&lt;/code&gt; and &lt;code class="cpp"&gt;&lt;span class="kt"&gt;common_datum_t&lt;/span&gt;&lt;/code&gt;. As for strings identifiers,
+they are simply serialized with the string itself and its length. Here is an
+updated template to parse the common permission group:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;$ &lt;/span&gt;cat SELinuxPolicy.bt
+&lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt; SELinuxPolicyEBitmap&lt;span class="p"&gt;;&lt;/span&gt;
+
+typedef struct &lt;span class="o"&gt;{&lt;/span&gt;
+    uint len&lt;span class="p"&gt;;&lt;/span&gt;
+    uint datum&lt;span class="p"&gt;;&lt;/span&gt;
+    uchar identifier&lt;span class="o"&gt;[&lt;/span&gt;len&lt;span class="o"&gt;]&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt; PERMISSION&lt;span class="p"&gt;;&lt;/span&gt;
+
+typedef struct &lt;span class="o"&gt;{&lt;/span&gt;
+    uint len&lt;span class="p"&gt;;&lt;/span&gt;
+    uint datum&lt;span class="p"&gt;;&lt;/span&gt;
+    uint perm_nprim&lt;span class="p"&gt;;&lt;/span&gt;
+    uint perm_nelem&lt;span class="p"&gt;;&lt;/span&gt;
+    uchar identifier&lt;span class="o"&gt;[&lt;/span&gt;len&lt;span class="o"&gt;]&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+    PERMISSION permission&lt;span class="o"&gt;[&lt;/span&gt;perm_nelem&lt;span class="o"&gt;]&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt; COMMON&lt;span class="p"&gt;;&lt;/span&gt;
+
+typedef struct &lt;span class="o"&gt;{&lt;/span&gt;
+    uint nprim&lt;span class="p"&gt;;&lt;/span&gt;
+    uint nelem&lt;span class="p"&gt;;&lt;/span&gt;
+    switch &lt;span class="o"&gt;(&lt;/span&gt;i&lt;span class="o"&gt;)&lt;/span&gt; &lt;span class="o"&gt;{&lt;/span&gt;
+        &lt;span class="k"&gt;case&lt;/span&gt; 0: // common statements
+            COMMON common&lt;span class="o"&gt;[&lt;/span&gt;nelem&lt;span class="o"&gt;]&lt;/span&gt;&lt;span class="p"&gt;;&lt;/span&gt;
+        default: // not handled yet
+            &lt;span class="k"&gt;return&lt;/span&gt; -1&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="o"&gt;}&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt; SYMBOL&lt;span class="p"&gt;;&lt;/span&gt;
+
+typedef struct &lt;span class="o"&gt;{&lt;/span&gt;
+    SELinuxPolicyHeader  header&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;header.version &amp;gt;&lt;span class="o"&gt;=&lt;/span&gt; 22&lt;span class="o"&gt;)&lt;/span&gt;
+        SELinuxPolicyEBitmap polcap&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;if&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;header.version &amp;gt;&lt;span class="o"&gt;=&lt;/span&gt; 23&lt;span class="o"&gt;)&lt;/span&gt;
+        SELinuxPolicyEBitmap permissive&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="k"&gt;for&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="nb"&gt;local &lt;/span&gt;int &lt;span class="nv"&gt;i&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; 0&lt;span class="p"&gt;;&lt;/span&gt; i &amp;lt; header.sym_num&lt;span class="p"&gt;;&lt;/span&gt; i++&lt;span class="o"&gt;)&lt;/span&gt; &lt;span class="o"&gt;{&lt;/span&gt;
+        SYMBOL symbol&lt;span class="p"&gt;;&lt;/span&gt;
+    &lt;span class="o"&gt;}&lt;/span&gt;
+&lt;span class="o"&gt;}&lt;/span&gt; SELinuxPolicy&lt;span class="p"&gt;;&lt;/span&gt;
+&lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;span class="nv"&gt;$ &lt;/span&gt;python fpf-parse.py sepolicy SELinuxPolicy.bt
+&lt;span class="m"&gt;0000&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+    &lt;span class="m"&gt;0000&lt;/span&gt; &lt;span class="nv"&gt;policy&lt;/span&gt;     &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="m"&gt;0000&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+        &lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+        &lt;span class="m"&gt;0044&lt;/span&gt; &lt;span class="nv"&gt;symbol&lt;/span&gt;     &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="m"&gt;0044&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+            &lt;span class="m"&gt;0044&lt;/span&gt; &lt;span class="nv"&gt;nprim&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;3&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000003&lt;span class="o"&gt;])&lt;/span&gt;
+            &lt;span class="m"&gt;0048&lt;/span&gt; &lt;span class="nv"&gt;nelem&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;3&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000003&lt;span class="o"&gt;])&lt;/span&gt;
+            004c &lt;span class="nv"&gt;common&lt;/span&gt;     &lt;span class="o"&gt;=&lt;/span&gt; COMMON&lt;span class="o"&gt;[&lt;/span&gt;3&lt;span class="o"&gt;]&lt;/span&gt;
+                004c common&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; 004c struct &lt;span class="o"&gt;{&lt;/span&gt;
+                        004c &lt;span class="nv"&gt;len&lt;/span&gt;        &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;6&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000006&lt;span class="o"&gt;])&lt;/span&gt;
+                        &lt;span class="m"&gt;0050&lt;/span&gt; &lt;span class="nv"&gt;datum&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;2&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000002&lt;span class="o"&gt;])&lt;/span&gt;
+                        &lt;span class="m"&gt;0054&lt;/span&gt; &lt;span class="nv"&gt;perm_nprim&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;22&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000016&lt;span class="o"&gt;])&lt;/span&gt;
+                        &lt;span class="m"&gt;0058&lt;/span&gt; &lt;span class="nv"&gt;perm_nelem&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;22&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000016&lt;span class="o"&gt;])&lt;/span&gt;
+                        005c &lt;span class="nv"&gt;identifier&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; UChar&lt;span class="o"&gt;[&lt;/span&gt;6&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;'socket'&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+                        &lt;span class="m"&gt;0062&lt;/span&gt; &lt;span class="nv"&gt;permission&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; PERMISSION&lt;span class="o"&gt;[&lt;/span&gt;22&lt;span class="o"&gt;]&lt;/span&gt;
+                            &lt;span class="m"&gt;0062&lt;/span&gt; permission&lt;span class="o"&gt;[&lt;/span&gt;0&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="m"&gt;0062&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+                                    &lt;span class="m"&gt;0062&lt;/span&gt; &lt;span class="nv"&gt;len&lt;/span&gt;        &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;6&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000006&lt;span class="o"&gt;])&lt;/span&gt;
+                                    &lt;span class="m"&gt;0066&lt;/span&gt; &lt;span class="nv"&gt;datum&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;10&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;0000000a&lt;span class="o"&gt;])&lt;/span&gt;
+                                    006a &lt;span class="nv"&gt;identifier&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; UChar&lt;span class="o"&gt;[&lt;/span&gt;6&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;'append'&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+                                &lt;span class="o"&gt;}&lt;/span&gt;
+                            &lt;span class="m"&gt;0070&lt;/span&gt; permission&lt;span class="o"&gt;[&lt;/span&gt;1&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; &lt;span class="m"&gt;0070&lt;/span&gt; struct &lt;span class="o"&gt;{&lt;/span&gt;
+                                    &lt;span class="m"&gt;0070&lt;/span&gt; &lt;span class="nv"&gt;len&lt;/span&gt;        &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;4&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000004&lt;span class="o"&gt;])&lt;/span&gt;
+                                    &lt;span class="m"&gt;0074&lt;/span&gt; &lt;span class="nv"&gt;datum&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;11&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;0000000b&lt;span class="o"&gt;])&lt;/span&gt;
+                                    &lt;span class="m"&gt;0078&lt;/span&gt; &lt;span class="nv"&gt;identifier&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; UChar&lt;span class="o"&gt;[&lt;/span&gt;4&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;'bind'&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+                                &lt;span class="o"&gt;}&lt;/span&gt;
+                            007c permission&lt;span class="o"&gt;[&lt;/span&gt;2&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; 007c struct &lt;span class="o"&gt;{&lt;/span&gt;
+                                    007c &lt;span class="nv"&gt;len&lt;/span&gt;        &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;7&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;00000007&lt;span class="o"&gt;])&lt;/span&gt;
+                                    &lt;span class="m"&gt;0080&lt;/span&gt; &lt;span class="nv"&gt;datum&lt;/span&gt;      &lt;span class="o"&gt;=&lt;/span&gt; UInt&lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="m"&gt;12&lt;/span&gt; &lt;span class="o"&gt;[&lt;/span&gt;0000000c&lt;span class="o"&gt;])&lt;/span&gt;
+                                    &lt;span class="m"&gt;0084&lt;/span&gt; &lt;span class="nv"&gt;identifier&lt;/span&gt; &lt;span class="o"&gt;=&lt;/span&gt; UChar&lt;span class="o"&gt;[&lt;/span&gt;7&lt;span class="o"&gt;]&lt;/span&gt; &lt;span class="o"&gt;(&lt;/span&gt;&lt;span class="s1"&gt;'connect'&lt;/span&gt;&lt;span class="o"&gt;)&lt;/span&gt;
+                                &lt;span class="o"&gt;}&lt;/span&gt;
+        &lt;span class="o"&gt;[&lt;/span&gt;...&lt;span class="o"&gt;]&lt;/span&gt;
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;As the process is slightly the same for the other statements, I will leave to
+the curious reader the decoding of the remaining binary as an exercise.&lt;/p&gt;
+&lt;/div&gt;
+&lt;div class="section" id="dumping-sepolicy-back-to-policy-conf"&gt;
+&lt;h2 id="dumping-sepolicy-back-to-policyconf"&gt;Dumping sepolicy back to policy.conf&lt;/h2&gt;
+&lt;p&gt;So far, I assumed that one had the source code to build the &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; file.
+Unfortunately, real life is far from being that easy and all you have, when
+analyzing an Android system, is a binary SELinux kernel policy file.
+Furthermore, this policy file is rarely the one from AOSP as manufacturers may
+add (and they generally do!) a new set of rules to reduce the
+attack surface on the services they added.&lt;/p&gt;
+&lt;p&gt;In order to audit SELinux statements, most of the time, one have to extract
+information from the binary policy file using &lt;a class="reference external" href="https://github.com/TresysTechnology/setools3"&gt;setools3 utilities (apol,
+sesearch, seinfo, sediff, etc.)&lt;/a&gt; for
+instance. That work is particularly tedious as these tools output only a
+fragment of the &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; file at a time and one may have to juggle with
+multiple tools to get an information of the binary file.&lt;/p&gt;
+&lt;p&gt;To my surprise and to my knowledge, no tool exists to extract a compilable
+&lt;tt class="docutils literal"&gt;policy.conf&lt;/tt&gt; file from a &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; binary &lt;a class="footnote-reference" href="#id3" id="id2"&gt;[1]&lt;/a&gt;. However, as we have just seen
+in the previous section, the SELinux kernel policy is simply a serialized
+version of a &lt;tt class="docutils literal"&gt;policydb_t&lt;/tt&gt; structure, built from parsing the &lt;tt class="docutils literal"&gt;policy.conf&lt;/tt&gt;
+file.  Moreover, &lt;tt class="docutils literal"&gt;checkpolicy&lt;/tt&gt; is able produce a semantically equivalent
+binary kernel policy (see &lt;code class="bash"&gt;-b&lt;/code&gt; option) from a compiled kernel policy.
+Thus, it should be possible to deserialize an &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; binary and get back
+a &lt;tt class="docutils literal"&gt;policy.conf&lt;/tt&gt; file equivalent to the original one.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;$ &lt;/span&gt;checkpolicy -b -M -c &lt;span class="m"&gt;29&lt;/span&gt; -o sepolicy.new sepolicy
+checkpolicy:  loading policy configuration from sepolicy
+libsepol.policydb_index_others: security:  &lt;span class="m"&gt;1&lt;/span&gt; users, &lt;span class="m"&gt;2&lt;/span&gt; roles, &lt;span class="m"&gt;534&lt;/span&gt; types, &lt;span class="m"&gt;0&lt;/span&gt; bools
+libsepol.policydb_index_others: security:  &lt;span class="m"&gt;1&lt;/span&gt; sens, &lt;span class="m"&gt;1024&lt;/span&gt; cats
+libsepol.policydb_index_others: security:  &lt;span class="m"&gt;55&lt;/span&gt; classes, &lt;span class="m"&gt;4473&lt;/span&gt; rules, &lt;span class="m"&gt;0&lt;/span&gt; cond rules
+checkpolicy:  policy configuration loaded
+checkpolicy:  writing binary representation &lt;span class="o"&gt;(&lt;/span&gt;version 29&lt;span class="o"&gt;)&lt;/span&gt; to sepolicy.new
+&lt;span class="nv"&gt;$ &lt;/span&gt;sediff -q --stats sepolicy/sepolicy &lt;span class="se"&gt;\;&lt;/span&gt; sepolicy/sepolicy.new
+&lt;span class="nv"&gt;$ &lt;/span&gt;&lt;span class="nb"&gt;echo&lt;/span&gt; &lt;span class="nv"&gt;$?&lt;/span&gt;
+0
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;I quickly wrote a proof-of-concept tool called &lt;a class="reference external" href="https://github.com/ge0n0sis/sedump/"&gt;sedump&lt;/a&gt; few weeks ago, using &lt;a class="reference external" href="https://github.com/TresysTechnology/setools"&gt;setools4&lt;/a&gt;'s python bindings. As setools4
+is still in alpha version and may conflict with setools3, I recommend to run it
+inside a docker container:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;$ &lt;/span&gt;sudo apt-get install docker-engine python-pip
+&lt;span class="nv"&gt;$ &lt;/span&gt;sudo pip install docker-compose
+&lt;span class="nv"&gt;$ &lt;/span&gt;git clone https://github.com/ge0n0sis/sedump
+&lt;span class="nv"&gt;$ &lt;/span&gt;&lt;span class="nb"&gt;cd &lt;/span&gt;sedump/docker
+&lt;span class="nv"&gt;$ &lt;/span&gt;docker-compose build master
+&lt;span class="nv"&gt;$ &lt;/span&gt;docker-compose up -d master
+&lt;span class="nv"&gt;$ &lt;/span&gt;docker-compose run master
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;So far, it has been tested with sepolicy binaries built from AOSP and sepolicy
+binaries extracted from Samsung stock ROMs. Currently, binary policies with
+conditional access vectors are not working, I am still working on the problem.&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;docker@5534108629ba:~&lt;span class="nv"&gt;$ &lt;/span&gt;&lt;span class="nb"&gt;cd &lt;/span&gt;setools
+docker@5534108629ba:~/setools&lt;span class="nv"&gt;$ &lt;/span&gt;python setup.py develop
+docker@5534108629ba:~/setools&lt;span class="nv"&gt;$ &lt;/span&gt;python sedump sepolicy -o policy.conf
+&lt;/pre&gt;&lt;/div&gt;
+&lt;p&gt;Outside the docker container, one can test that the &lt;tt class="docutils literal"&gt;policy.conf&lt;/tt&gt; file is
+semantically equivalent to the original one, by compiling it and running a
+diffing tool like &lt;tt class="docutils literal"&gt;sediff&lt;/tt&gt;:&lt;/p&gt;
+&lt;div class="highlight"&gt;&lt;pre&gt;&lt;span class="nv"&gt;$ &lt;/span&gt;checkpolicy -M -c &lt;span class="m"&gt;29&lt;/span&gt; -o sepolicy.new policy.conf
+checkpolicy:  loading policy configuration from policy.conf
+checkpolicy:  policy configuration loaded
+checkpolicy:  writing binary representation &lt;span class="o"&gt;(&lt;/span&gt;version 29&lt;span class="o"&gt;)&lt;/span&gt; to sepolicy.new
+&lt;span class="nv"&gt;$ &lt;/span&gt;sediff -q --stats sepolicy &lt;span class="se"&gt;\;&lt;/span&gt; sepolicy.new
+&lt;span class="nv"&gt;$ &lt;/span&gt;&lt;span class="nb"&gt;echo&lt;/span&gt; &lt;span class="nv"&gt;$?&lt;/span&gt;
+0
+&lt;/pre&gt;&lt;/div&gt;
+&lt;table class="docutils footnote" frame="void" id="id3" rules="none"&gt;
+&lt;colgroup&gt;&lt;col class="label"&gt;&lt;/col&gt;&lt;col&gt;&lt;/col&gt;&lt;/colgroup&gt;
+&lt;tbody valign="top"&gt;
+&lt;tr&gt;&lt;td class="label"&gt;&lt;a class="fn-backref" href="#id2"&gt;[1]&lt;/a&gt;&lt;/td&gt;&lt;td&gt;&lt;a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/test/dispol.c"&gt;dispol&lt;/a&gt;
+currently only displays access vector and conditional access vector rules.&lt;/td&gt;&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;/div&gt;
+&lt;div class="section" id="conclusion"&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;Security Enhancements for Android, and more generally SELinux, is a really
+complex subject. In this article, I covered only a tiny part of this solution,
+which has been an integral part of the Android security model since Android 4.3.&lt;/p&gt;
+&lt;p&gt;We have dissected, first, Android's build system to understand how was
+generated the SELinux kernel policy binary for Android. The whole build process
+is not that different from SELinux for desktops, it heavily uses &lt;tt class="docutils literal"&gt;m4&lt;/tt&gt; and
+&lt;tt class="docutils literal"&gt;checkpolicy&lt;/tt&gt; to respectively expand and build a monolithic policy from a set
+of SELinux statements. As regular versions of &lt;tt class="docutils literal"&gt;m4&lt;/tt&gt; and &lt;tt class="docutils literal"&gt;checkpolicy&lt;/tt&gt; are used,
+one can build a &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; out of Android source tree easily.&lt;/p&gt;
+&lt;p&gt;Then, I dug further in the policy compilation process by analyzing the source
+code of &lt;tt class="docutils literal"&gt;checkpolicy&lt;/tt&gt;. We introduced data structures used to store these statements
+in memory and I presented briefly the file format of an SELinux kernel policy.
+The &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; binary is simply a serialized version of a &lt;code class="cpp"&gt;&lt;span class="kt"&gt;policydb_t&lt;/span&gt;&lt;/code&gt;
+structure, built from parsing the &lt;tt class="docutils literal"&gt;policy.conf&lt;/tt&gt; file.&lt;/p&gt;
+&lt;p&gt;Finally, I introduced a proof-of-concept tool, &lt;a class="reference external" href="https://github.com/ge0n0sis/sedump/"&gt;sedump&lt;/a&gt;, to decompile or
+deserialize a &lt;tt class="docutils literal"&gt;sepolicy&lt;/tt&gt; binary into a text file &lt;tt class="docutils literal"&gt;policy.conf&lt;/tt&gt;, and, to my
+surprise, no such tool exists. Once decompiled, one can audit the SELinux
+policy the hard way, modify it and compile it to get a new policy file if
+needed.&lt;/p&gt;
+&lt;p&gt;Please note that &lt;a class="reference external" href="https://github.com/ge0n0sis/sedump/"&gt;sedump&lt;/a&gt; is still in alpha-version: do not hesitate to give
+us feedbacks or report failing test cases to us via github. A known limitation
+is binary policies with conditional access vectors, &lt;tt class="docutils literal"&gt;if/else&lt;/tt&gt; statement may
+not be correctly rendered. There is a lot of work to do before thinking about
+merging it into &lt;a class="reference external" href="https://github.com/TresysTechnology/setools"&gt;setools4&lt;/a&gt;'s
+mainline.&lt;/p&gt;
+&lt;/div&gt;
+</summary><category term="android"></category><category term="selinux"></category><category term="seandroid"></category><category term="sedump"></category></entry></feed>
