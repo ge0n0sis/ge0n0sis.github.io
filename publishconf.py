@@ -25,5 +25,5 @@ SOCIAL.extend([
 
 # Following items are often useful when publishing
 
-DISQUS_SITENAME  = 'ge0n0sis.disqus.com'
+DISQUS_SITENAME  = 'ge0n0sis'
 GOOGLE_ANALYTICS = 'UA-71641668-1'
