@@ -5,11 +5,10 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <meta name="author" content="ge0n0sis" />
-        <meta name="description" content="" />
+    <meta name="keywords" content="samsung" />
 
 
-    <title>ge0n0sis.github.io</title>
+    <title>samsung - ge0n0sis.github.io</title>
 
         <link rel="stylesheet" href="https://ge0n0sis.github.io/theme/css/bootstrap.min.css" type="text/css" />
 
@@ -172,10 +171,23 @@
         <!-- Page Content -->
         <div id="page-content-wrapper">
             <div class="container-fluid">
-<ul>
-    <li><a href="https://ge0n0sis.github.io/category/bootloader.html">bootloader</a></li>
-    <li><a href="https://ge0n0sis.github.io/category/seandroid.html">seandroid</a></li>
-</ul>
+<div class="row">
+    <div class="col-lg-9">
+        <header class="page-header">
+            <h1>Articles featuring samsung</h1>
+        </header>
+    </div>
+</div>
+<div class="row">
+    <div class="col-lg-9">
+            <article>
+                <h4>
+                    <time datetime="2016-05-25T00:00:00+02:00"> mer. 25 mai 2016</time>
+                    <a href="https://ge0n0sis.github.io/posts/2016/05/how-to-lock-the-samsung-download-mode-using-an-undocumented-feature-of-aboot/">How to lock the samsung download mode using an undocumented feature of aboot</a>
+                </h4>
+            </article>
+    </div>
+</div>
 <footer>
     <hr>
     <div class="row">
@@ -214,5 +226,24 @@
         })();
     </script>
     <!-- End Google Analytics Code -->
+<script>
+    function FadeInOnScroll(ObjectList){
+        ObjectList.each(function(i) {
+            var bottom_of_object = $(this).position().top + $(this).outerHeight();
+            var bottom_of_window = $(window).scrollTop() + $(window).height();
+
+            if( bottom_of_window > bottom_of_object ){
+                $(this).fadeTo(750,1);
+            }
+        });
+    }
+
+    articles = $("article").fadeTo(0, 0.05);
+    FadeInOnScroll(articles)
+
+    $(window).scroll(function() {
+        FadeInOnScroll(articles)
+    });
+</script>
 </body>
 </html>

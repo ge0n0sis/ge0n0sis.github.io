@@ -144,6 +144,13 @@
                     </a>
                 </li>
                 <li class="panel anti-panel"><ul id="collapse-categories" class="sidebar_submenu collapse ">
+                    <li >
+                        <a href="https://ge0n0sis.github.io/category/bootloader.html">
+                            <i class="fa fa-folder-open padding-small"></i>
+                            bootloader
+                            <span class="badge pull-right categorybadge">1</span>
+                        </a>
+                    </li>
                     <li class="active">
                         <a href="https://ge0n0sis.github.io/category/seandroid.html">
                             <i class="fa fa-folder-open padding-small"></i>
@@ -182,7 +189,7 @@
     <div class="publish-info-block">
         <small>
             <span class="published">
-                <i class="fa fa-calendar padding-small"></i><time datetime="2015-12-22T00:00:00+01:00"> Tue 22 December 2015</time>
+                <i class="fa fa-calendar padding-small"></i><time datetime="2015-12-22T00:00:00+01:00"> mar. 22 décembre 2015</time>
             </span>
             <span class="category">
                 <i class="fa fa-folder-open padding-small"></i><a href="https://ge0n0sis.github.io/category/seandroid.html">seandroid</a>
@@ -217,9 +224,9 @@ statements from a binary file extracted from an Android ROM for instance.</p>
 is generated. Source files required to build Android's <cite>sepolicy</cite> can be
 downloaded either from the <cite>Android Source Tree</cite> (<a class="reference external" href="https://android.googlesource.com/platform/external/sepolicy">external/sepolicy</a>) or from the
 <cite>Security Enhancements (SE) for Android</cite> repositories (<a class="reference external" href="https://bitbucket.org/seandroid/external-sepolicy/">external-sepolicy</a>).</p>
-<div class="highlight"><pre><span class="nv">$ </span>git clone https://android.googlesource.com/platform/external/sepolicy
-<span class="nv">$ </span><span class="nb">cd </span>sepolicy
-<span class="nv">$ </span>ls
+<div class="highlight"><pre><span></span>$ git clone https://android.googlesource.com/platform/external/sepolicy
+$ <span class="nb">cd</span> sepolicy
+$ ls
 access_vectors          bluetoothdomain.te  dnsmasq.te            <span class="o">[</span>...<span class="o">]</span>
 adbd.te                 bluetooth.te        domain_deprecated.te  <span class="o">[</span>...<span class="o">]</span>
 Android.mk              bootanim.te         domain.te             <span class="o">[</span>...<span class="o">]</span>
@@ -228,7 +235,7 @@ Android.mk              bootanim.te         domain.te             <span class="o
 <p>Like any other Android project, rules to build output files are described
 inside a make file named <tt class="docutils literal">Android.mk</tt>. Let us dissect that file, especially
 rules to build the <code class="bash">sepolicy</code> target:</p>
-<div class="highlight"><pre>POLICYVERS ?<span class="o">=</span> 29
+<div class="highlight"><pre><span></span>POLICYVERS ?<span class="o">=</span> 29
 <span class="o">[</span>...<span class="o">]</span>
 LOCAL_MODULE :<span class="o">=</span> sepolicy
 LOCAL_MODULE_CLASS :<span class="o">=</span> ETC
@@ -240,16 +247,16 @@ sepolicy_policy.conf :<span class="o">=</span> <span class="k">$(</span>intermed
 <span class="o">[</span>...<span class="o">]</span>
 <span class="k">$(</span>LOCAL_BUILT_MODULE<span class="k">)</span>: <span class="k">$(</span>sepolicy_policy.conf<span class="k">)</span> <span class="k">$(</span>HOST_OUT_EXECUTABLES<span class="k">)</span>/checkpolicy
     @mkdir -p <span class="k">$(</span>dir <span class="nv">$@</span><span class="k">)</span>
-    <span class="k">$(</span>hide<span class="k">)</span> <span class="k">$(</span>HOST_OUT_EXECUTABLES<span class="k">)</span>/checkpolicy -M -c <span class="k">$(</span>POLICYVERS<span class="k">)</span> -o <span class="nv">$@</span> <span class="nv">$&lt;</span>
+    <span class="k">$(</span>hide<span class="k">)</span> <span class="k">$(</span>HOST_OUT_EXECUTABLES<span class="k">)</span>/checkpolicy -M -c <span class="k">$(</span>POLICYVERS<span class="k">)</span> -o <span class="nv">$@</span> $&lt;
     <span class="k">$(</span>hide<span class="k">)</span> <span class="k">$(</span>HOST_OUT_EXECUTABLES<span class="k">)</span>/checkpolicy -M -c <span class="k">$(</span>POLICYVERS<span class="k">)</span> -o <span class="se">\</span>
-        <span class="k">$(</span>dir <span class="nv">$&lt;</span><span class="k">)</span>/<span class="k">$(</span>notdir <span class="nv">$@</span><span class="k">)</span>.dontaudit <span class="nv">$&lt;</span>.dontaudit
+        <span class="k">$(</span>dir $&lt;<span class="k">)</span>/<span class="k">$(</span>notdir <span class="nv">$@</span><span class="k">)</span>.dontaudit $&lt;.dontaudit
 </pre></div>
 <p>When run, the <code class="bash">sepolicy</code> target outputs two files, <tt class="docutils literal">sepolicy</tt> and
 <tt class="docutils literal">sepolicy.dontaudit</tt>, into the <code class="bash"><span class="k">$(</span>intermediates<span class="k">)</span></code> folder defined by the
 Android build system. These two files are generated with <tt class="docutils literal">checkpolicy</tt> by
 providing respectively <code class="bash"><span class="k">$(</span>sepolicy_policy.conf<span class="k">)</span></code> and
 <code class="bash"><span class="k">$(</span>sepolicy_policy.conf<span class="k">)</span>.dontaudit</code> as input.</p>
-<div class="highlight"><pre><span class="nv">MLS_SENS</span><span class="o">=</span>1
+<div class="highlight"><pre><span></span><span class="nv">MLS_SENS</span><span class="o">=</span>1
 <span class="nv">MLS_CATS</span><span class="o">=</span>1024
 <span class="o">[</span>...<span class="o">]</span>
 sepolicy_policy.conf :<span class="o">=</span> <span class="k">$(</span>intermediates<span class="k">)</span>/policy.conf
@@ -261,7 +268,7 @@ sepolicy_policy.conf :<span class="o">=</span> <span class="k">$(</span>intermed
     <span class="k">$(</span>hide<span class="k">)</span> m4 <span class="k">$(</span>PRIVATE_ADDITIONAL_M4DEFS<span class="k">)</span> <span class="se">\</span>
         -D <span class="nv">mls_num_sens</span><span class="o">=</span><span class="k">$(</span>PRIVATE_MLS_SENS<span class="k">)</span> -D <span class="nv">mls_num_cats</span><span class="o">=</span><span class="k">$(</span>PRIVATE_MLS_CATS<span class="k">)</span> <span class="se">\</span>
         -D <span class="nv">target_build_variant</span><span class="o">=</span><span class="k">$(</span>TARGET_BUILD_VARIANT<span class="k">)</span> <span class="se">\</span>
-        -s <span class="nv">$^</span> &gt; <span class="nv">$@</span>
+        -s $^ &gt; <span class="nv">$@</span>
     <span class="k">$(</span>hide<span class="k">)</span> sed <span class="s1">'/dontaudit/d'</span> <span class="nv">$@</span> &gt; <span class="nv">$@</span>.dontaudit
 </pre></div>
 <p>The <code class="bash">sepolicy_policy.conf</code> target outputs two files,
@@ -271,7 +278,7 @@ The general-purpose macro processor M4 expands files listed in the
 its stripped off version <tt class="docutils literal">policy.conf.dontaudit</tt>.
 <code class="bash"><span class="k">$(</span>sepolicy_build_files<span class="k">)</span></code> simply lists all source files required to build the
 Android SELinux kernel policy:</p>
-<div class="highlight"><pre>sepolicy_build_files :<span class="o">=</span> security_classes initial_sids access_vectors <span class="se">\</span>
+<div class="highlight"><pre><span></span>sepolicy_build_files :<span class="o">=</span> security_classes initial_sids access_vectors <span class="se">\</span>
     global_macros neverallow_macros mls_macros mls policy_capabilities <span class="se">\</span>
     te_macros attributes ioctl_macros *.te roles users initial_sid_contexts <span class="se">\</span>
     fs_use genfs_contexts port_contexts
@@ -284,21 +291,21 @@ variables.</p>
 of Android build system. <tt class="docutils literal">checkpolicy</tt> is not an android-specific tool, thus
 one provided with the <a class="reference external" href="https://github.com/TresysTechnology/setools3">setools</a>
 package in your default Linux distribution should be enough:</p>
-<div class="highlight"><pre><span class="nv">$ </span>sudo apt-get install m4 setools
-<span class="nv">$ </span>m4 -D <span class="nv">mls_num_sens</span><span class="o">=</span><span class="m">1</span> -D <span class="nv">mls_num_cats</span><span class="o">=</span><span class="m">1024</span> -D <span class="nv">target_build_variant</span><span class="o">=</span>user <span class="se">\</span>
+<div class="highlight"><pre><span></span>$ sudo apt-get install m4 setools
+$ m4 -D <span class="nv">mls_num_sens</span><span class="o">=</span><span class="m">1</span> -D <span class="nv">mls_num_cats</span><span class="o">=</span><span class="m">1024</span> -D <span class="nv">target_build_variant</span><span class="o">=</span>user <span class="se">\</span>
      -s security_classes initial_sids access_vectors global_macros <span class="se">\</span>
         neverallow_macros mls_macros mls policy_capabilities te_macros <span class="se">\</span>
         attributes ioctl_macros *.te roles users initial_sid_contexts <span class="se">\</span>
         fs_use genfs_contexts port_contexts &gt; policy.conf
-<span class="nv">$ </span>checkpolicy -h
+$ checkpolicy -h
 usage:  checkpolicy <span class="o">[</span>-b<span class="o">]</span> <span class="o">[</span>-d<span class="o">]</span> <span class="o">[</span>-U handle_unknown <span class="o">(</span>allow,deny,reject<span class="o">)]</span> <span class="se">\</span>
                     <span class="o">[</span>-M<span class="o">][</span>-c policyvers <span class="o">(</span>15-29<span class="o">)]</span> <span class="o">[</span>-o output_file<span class="o">]</span>      <span class="se">\</span>
                     <span class="o">[</span>-t target_platform <span class="o">(</span>selinux,xen<span class="o">)]</span> <span class="o">[</span>input_file<span class="o">]</span>
-<span class="nv">$ </span>checkpolicy -M -c <span class="m">29</span> -o sepolicy policy.conf
+$ checkpolicy -M -c <span class="m">29</span> -o sepolicy policy.conf
 checkpolicy:  loading policy configuration from policy.conf
 checkpolicy:  policy configuration loaded
 checkpolicy:  writing binary representation <span class="o">(</span>version 29<span class="o">)</span> to sepolicy
-<span class="nv">$ </span>file sepolicy
+$ file sepolicy
 sepolicy: SE Linux policy v29 MLS <span class="m">8</span> symbols <span class="m">7</span> ocons
 </pre></div>
 <p><tt class="docutils literal">checkpolicy</tt> accepts numerous options. The <code class="bash">-M</code> option is a flag to
@@ -313,7 +320,7 @@ the SELinux kernel policy file format is not documented, probably because it is
 a complex format which depends heavily on the policy version.</p>
 <p>The main entry point for <a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/">checkpolicy</a> is
 located in <a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/checkpolicy.c">checkpolicy.c</a>.
-In a few words, a SELinux policy is represented in memory by a <code class="cpp"><span class="kt">policydb_t</span></code> data
+In a few words, a SELinux policy is represented in memory by a <code class="cpp"><span class="n">policydb_t</span></code> data
 structure. It is zeroed and initialized by the <a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/checkpolicy.c#571">policydb_init()</a>
 method, and its members are set while parsing SELinux statements using LEX and
 YACC (<a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/policy_scan.l">policy_scan.l</a>
@@ -321,12 +328,12 @@ and <a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/ext
 in <a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/checkpolicy.c#583">read_source_policy()</a>.
 Once fully parsed, <tt class="docutils literal">checkpolicy</tt> outputs the resulting SELinux kernel policy
 binary to the path specified in the command line. The method <a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/checkpolicy/checkpolicy.c#632">policydb_write()</a>
-is in charge of writing a <code class="cpp"><span class="kt">policydb_t</span></code> on the disk.</p>
+is in charge of writing a <code class="cpp"><span class="n">policydb_t</span></code> on the disk.</p>
 <p>I deliberately skip the parsing of the SELinux statement and I assume that the
-policy has been loaded and the <code class="cpp"><span class="kt">policydb_t</span></code> data structure is ready to be
+policy has been loaded and the <code class="cpp"><span class="n">policydb_t</span></code> data structure is ready to be
 written on the disk. The following listing handles writing the binary policy on
 the disk:</p>
-<div class="highlight"><pre><span class="k">struct</span> <span class="n">policy_file</span> <span class="n">pf</span><span class="p">;</span>
+<div class="highlight"><pre><span></span><span class="k">struct</span> <span class="n">policy_file</span> <span class="n">pf</span><span class="p">;</span>
 <span class="p">[...]</span>
 <span class="k">if</span> <span class="p">(</span><span class="n">outfile</span><span class="p">)</span> <span class="p">{</span>
     <span class="n">outfp</span> <span class="o">=</span> <span class="n">fopen</span><span class="p">(</span><span class="n">outfile</span><span class="p">,</span> <span class="s">"w"</span><span class="p">);</span>
@@ -348,11 +355,11 @@ the disk:</p>
 <span class="p">}</span>
 </pre></div>
 <p><code class="cpp"><span class="n">policydb_write</span><span class="p">()</span></code> expects two arguments: a reference to a
-<code class="cpp"><span class="kt">policydb_t</span></code> data structure and a reference to a <code class="cpp"><span class="k">struct</span>
+<code class="cpp"><span class="n">policydb_t</span></code> data structure and a reference to a <code class="cpp"><span class="k">struct</span>
 <span class="n">policy_file</span></code>. The later is an abstration layer for possible input or output
 formats (memory-mapped memory or basic I/O). The <code class="cpp"><span class="k">struct</span> <span class="n">policy_file</span></code> is
 defined as follows in <a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/libsepol/include/sepol/policydb/policydb.h#664">libsepol</a>:</p>
-<div class="highlight"><pre><span class="cm">/* A policy "file" may be a memory region referenced by a (data, len) pair</span>
+<div class="highlight"><pre><span></span><span class="cm">/* A policy "file" may be a memory region referenced by a (data, len) pair</span>
 <span class="cm">   or a file referenced by a FILE pointer. */</span>
 <span class="k">typedef</span> <span class="k">struct</span> <span class="n">policy_file</span> <span class="p">{</span>
 <span class="cp">#define PF_USE_MEMORY  0</span>
@@ -364,7 +371,7 @@ defined as follows in <a class="reference external" href="http://androidxref.com
     <span class="kt">size_t</span> <span class="n">size</span><span class="p">;</span>
     <span class="kt">FILE</span> <span class="o">*</span><span class="n">fp</span><span class="p">;</span>
     <span class="k">struct</span> <span class="n">sepol_handle</span> <span class="o">*</span><span class="n">handle</span><span class="p">;</span>
-<span class="p">}</span> <span class="kt">policy_file_t</span><span class="p">;</span>
+<span class="p">}</span> <span class="n">policy_file_t</span><span class="p">;</span>
 </pre></div>
 <p>Let us focus now on <code class="cpp"><span class="n">policydb_write</span><span class="p">()</span></code> (defined in <a class="reference external" href="http://androidxref.com/6.0.0_r0/xref/external/selinux/libsepol/src/write.c#1942">libsepol/src/write.c</a>)
 to understand the format of the binary policy. SELinux policies can be
@@ -379,7 +386,7 @@ policy compatibility: the <em>length</em> of a standardized string identifier an
 <em>symbol array</em> and <em>object context array</em> sizes. To illustrate the file format,
 I wrote an incomplete 010Editor template that parses the SELinux kernel policy
 header.</p>
-<div class="highlight"><pre><span class="err">$</span> <span class="n">cat</span> <span class="n">SELinux</span><span class="p">.</span><span class="n">bt</span>
+<div class="highlight"><pre><span></span><span class="err">$</span> <span class="n">cat</span> <span class="n">SELinux</span><span class="p">.</span><span class="n">bt</span>
 <span class="k">typedef</span> <span class="k">enum</span> <span class="o">&lt;</span><span class="n">uint</span><span class="o">&gt;</span> <span class="p">{</span>
     <span class="n">MLS</span>    <span class="o">=</span> <span class="mi">1</span>
 <span class="p">}</span> <span class="n">CONFIG</span><span class="p">;</span>
@@ -410,12 +417,12 @@ header.</p>
 <p>Using <a class="reference external" href="https://github.com/d0c-s4vage/pfp">Python format parser (pfp)</a>, one
 can dissect an <tt class="docutils literal">sepolicy</tt> header with the above mentionned template. As
 expected, we manage to retrieve the same piece of information as <tt class="docutils literal">file</tt>:</p>
-<div class="highlight"><pre><span class="nv">$ </span>cat pfp-parse.py
+<div class="highlight"><pre><span></span>$ cat pfp-parse.py
 import sys, pfp
 
 <span class="nv">dom</span> <span class="o">=</span> pfp.parse<span class="o">(</span><span class="nv">data_file</span><span class="o">=</span>sys.argv<span class="o">[</span>1<span class="o">]</span>, <span class="nv">template_file</span><span class="o">=</span>sys.argv<span class="o">[</span>2<span class="o">])</span>
 print<span class="o">(</span>dom._pfp__show<span class="o">(</span><span class="nv">include_offset</span><span class="o">=</span>True<span class="o">))</span>
-<span class="nv">$ </span>python fpf-parse.py sepolicy SELinuxPolicy.bt
+$ python fpf-parse.py sepolicy SELinuxPolicy.bt
 <span class="m">0000</span> struct <span class="o">{</span>
     <span class="m">0000</span> <span class="nv">policy</span>     <span class="o">=</span> <span class="m">0000</span> struct <span class="o">{</span>
         <span class="m">0000</span> <span class="nv">header</span>     <span class="o">=</span> <span class="m">0000</span> struct <span class="o">{</span>
@@ -429,15 +436,15 @@ print<span class="o">(</span>dom._pfp__show<span class="o">(</span><span class="
         <span class="o">}</span>
     <span class="o">}</span>
 <span class="o">}</span>
-<span class="nv">$ </span>file sepolicy
+$ file sepolicy
 sepolicy: SE Linux policy v29 MLS <span class="m">8</span> symbols <span class="m">7</span> ocons
 </pre></div>
-<p>The SELinux kernel policy header is followed by two serialized <code class="cpp"><span class="kt">ebitmap_t</span></code>
+<p>The SELinux kernel policy header is followed by two serialized <code class="cpp"><span class="n">ebitmap_t</span></code>
 (<a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/libsepol/src/ebitmap.c">libsepol/ebitmap.c</a>):
 on that stores <code>polcap</code> statements and another one for <code>permissive</code>
 statements. To output these bitmaps, the template has been updated with the
 following:</p>
-<div class="highlight"><pre><span class="nv">$ </span>cat SELinuxPolicy.bt
+<div class="highlight"><pre><span></span>$ cat SELinuxPolicy.bt
 <span class="o">[</span>...<span class="o">]</span>
 <span class="o">}</span> SELinuxPolicyHeader<span class="p">;</span>
 
@@ -461,7 +468,7 @@ typedef struct <span class="o">{</span>
         SELinuxPolicyEBitmap permissive<span class="p">;</span>
 <span class="o">}</span> SELinuxPolicy<span class="p">;</span>
 <span class="o">[</span>...<span class="o">]</span>
-<span class="nv">$ </span>python fpf-parse.py sepolicy SELinuxPolicy.bt
+$ python fpf-parse.py sepolicy SELinuxPolicy.bt
 <span class="m">0000</span> struct <span class="o">{</span>
     <span class="m">0000</span> <span class="nv">policy</span>     <span class="o">=</span> <span class="m">0000</span> struct <span class="o">{</span>
         <span class="o">[</span>...<span class="o">]</span>
@@ -495,20 +502,20 @@ as there are many data structures involved and to serialize:
 <code class="cpp"><span class="n">policydb_write</span><span class="p">()</span></code> outputs identifiers declarations (common, types,
 attributes, etc.) and the defined access vector rules (allow, deny, dontaudit,
 etc. rules.). Let us detail the serialization of common permission sets.</p>
-<p>Common permission sets are stored in the <code class="cpp"><span class="kt">policydb_t</span></code> data structure in
+<p>Common permission sets are stored in the <code class="cpp"><span class="n">policydb_t</span></code> data structure in
 the <code class="cpp"><span class="n">symtable</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">table</span></code> field. It is a hash table with the common
-permission set identifier as key and a reference to a <code class="cpp"><span class="kt">common_datum_t</span></code> as
-value. The latter is a structure with a <code class="cpp"><span class="kt">datum_t</span></code> (i.e., index) and an
+permission set identifier as key and a reference to a <code class="cpp"><span class="n">common_datum_t</span></code> as
+value. The latter is a structure with a <code class="cpp"><span class="n">datum_t</span></code> (i.e., index) and an
 hash table listing the permission associated with the common identifier. All
 these structures are defined in <a class="reference external" href="http://androidxref.com/6.0.0_r1/xref/external/selinux/libsepol/include/sepol/policydb/policydb.h#106">libsepol/sepol/policydb/policydb.h</a>.</p>
-<p>In <tt class="docutils literal">libsepol</tt>, <code class="cpp"><span class="kt">hashtab_t</span></code> hash tables are all serialized in the same
+<p>In <tt class="docutils literal">libsepol</tt>, <code class="cpp"><span class="n">hashtab_t</span></code> hash tables are all serialized in the same
 way. The serialized structure contains a <code class="cpp"><span class="n">nprim</span></code> member, keys and values
 of the hash table and additionnally <code class="cpp"><span class="n">nelem</span></code>, representing the number of
 elements stored in the hash table. These members can be found in the serialized
-<code class="cpp"><span class="n">symtable</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">table</span></code> and <code class="cpp"><span class="kt">common_datum_t</span></code>. As for strings identifiers,
+<code class="cpp"><span class="n">symtable</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="n">table</span></code> and <code class="cpp"><span class="n">common_datum_t</span></code>. As for strings identifiers,
 they are simply serialized with the string itself and its length. Here is an
 updated template to parse the common permission group:</p>
-<div class="highlight"><pre><span class="nv">$ </span>cat SELinuxPolicy.bt
+<div class="highlight"><pre><span></span>$ cat SELinuxPolicy.bt
 <span class="o">[</span>...<span class="o">]</span>
 <span class="o">}</span> SELinuxPolicyEBitmap<span class="p">;</span>
 
@@ -544,12 +551,12 @@ typedef struct <span class="o">{</span>
         SELinuxPolicyEBitmap polcap<span class="p">;</span>
     <span class="k">if</span> <span class="o">(</span>header.version &gt;<span class="o">=</span> 23<span class="o">)</span>
         SELinuxPolicyEBitmap permissive<span class="p">;</span>
-    <span class="k">for</span> <span class="o">(</span><span class="nb">local </span>int <span class="nv">i</span> <span class="o">=</span> 0<span class="p">;</span> i &lt; header.sym_num<span class="p">;</span> i++<span class="o">)</span> <span class="o">{</span>
+    <span class="k">for</span> <span class="o">(</span><span class="nb">local</span> int <span class="nv">i</span> <span class="o">=</span> 0<span class="p">;</span> i &lt; header.sym_num<span class="p">;</span> i++<span class="o">)</span> <span class="o">{</span>
         SYMBOL symbol<span class="p">;</span>
     <span class="o">}</span>
 <span class="o">}</span> SELinuxPolicy<span class="p">;</span>
 <span class="o">[</span>...<span class="o">]</span>
-<span class="nv">$ </span>python fpf-parse.py sepolicy SELinuxPolicy.bt
+$ python fpf-parse.py sepolicy SELinuxPolicy.bt
 <span class="m">0000</span> struct <span class="o">{</span>
     <span class="m">0000</span> <span class="nv">policy</span>     <span class="o">=</span> <span class="m">0000</span> struct <span class="o">{</span>
         <span class="o">[</span>...<span class="o">]</span>
@@ -606,44 +613,44 @@ file.  Moreover, <tt class="docutils literal">checkpolicy</tt> is able produce a
 binary kernel policy (see <code class="bash">-b</code> option) from a compiled kernel policy.
 Thus, it should be possible to deserialize an <tt class="docutils literal">sepolicy</tt> binary and get back
 a <tt class="docutils literal">policy.conf</tt> file equivalent to the original one.</p>
-<div class="highlight"><pre><span class="nv">$ </span>checkpolicy -b -M -c <span class="m">29</span> -o sepolicy.new sepolicy
+<div class="highlight"><pre><span></span>$ checkpolicy -b -M -c <span class="m">29</span> -o sepolicy.new sepolicy
 checkpolicy:  loading policy configuration from sepolicy
 libsepol.policydb_index_others: security:  <span class="m">1</span> users, <span class="m">2</span> roles, <span class="m">534</span> types, <span class="m">0</span> bools
 libsepol.policydb_index_others: security:  <span class="m">1</span> sens, <span class="m">1024</span> cats
 libsepol.policydb_index_others: security:  <span class="m">55</span> classes, <span class="m">4473</span> rules, <span class="m">0</span> cond rules
 checkpolicy:  policy configuration loaded
 checkpolicy:  writing binary representation <span class="o">(</span>version 29<span class="o">)</span> to sepolicy.new
-<span class="nv">$ </span>sediff -q --stats sepolicy/sepolicy <span class="se">\;</span> sepolicy/sepolicy.new
-<span class="nv">$ </span><span class="nb">echo</span> <span class="nv">$?</span>
+$ sediff -q --stats sepolicy/sepolicy <span class="se">\;</span> sepolicy/sepolicy.new
+$ <span class="nb">echo</span> <span class="nv">$?</span>
 0
 </pre></div>
 <p>I quickly wrote a proof-of-concept tool called <a class="reference external" href="https://github.com/ge0n0sis/sedump/">sedump</a> few weeks ago, using <a class="reference external" href="https://github.com/TresysTechnology/setools">setools4</a>'s python bindings. As setools4
 is still in alpha version and may conflict with setools3, I recommend to run it
 inside a docker container:</p>
-<div class="highlight"><pre><span class="nv">$ </span>sudo apt-get install docker-engine python-pip
-<span class="nv">$ </span>sudo pip install docker-compose
-<span class="nv">$ </span>git clone https://github.com/ge0n0sis/sedump
-<span class="nv">$ </span><span class="nb">cd </span>sedump/docker
-<span class="nv">$ </span>docker-compose build master
-<span class="nv">$ </span>docker-compose up -d master
-<span class="nv">$ </span>docker-compose run master
+<div class="highlight"><pre><span></span>$ sudo apt-get install docker-engine python-pip
+$ sudo pip install docker-compose
+$ git clone https://github.com/ge0n0sis/sedump
+$ <span class="nb">cd</span> sedump/docker
+$ docker-compose build master
+$ docker-compose up -d master
+$ docker-compose run master
 </pre></div>
 <p>So far, it has been tested with sepolicy binaries built from AOSP and sepolicy
 binaries extracted from Samsung stock ROMs. Currently, binary policies with
 conditional access vectors are not working, I am still working on the problem.</p>
-<div class="highlight"><pre>docker@5534108629ba:~<span class="nv">$ </span><span class="nb">cd </span>setools
-docker@5534108629ba:~/setools<span class="nv">$ </span>python setup.py develop
-docker@5534108629ba:~/setools<span class="nv">$ </span>python sedump sepolicy -o policy.conf
+<div class="highlight"><pre><span></span>docker@5534108629ba:~$ <span class="nb">cd</span> setools
+docker@5534108629ba:~/setools$ python setup.py develop
+docker@5534108629ba:~/setools$ python sedump sepolicy -o policy.conf
 </pre></div>
 <p>Outside the docker container, one can test that the <tt class="docutils literal">policy.conf</tt> file is
 semantically equivalent to the original one, by compiling it and running a
 diffing tool like <tt class="docutils literal">sediff</tt>:</p>
-<div class="highlight"><pre><span class="nv">$ </span>checkpolicy -M -c <span class="m">29</span> -o sepolicy.new policy.conf
+<div class="highlight"><pre><span></span>$ checkpolicy -M -c <span class="m">29</span> -o sepolicy.new policy.conf
 checkpolicy:  loading policy configuration from policy.conf
 checkpolicy:  policy configuration loaded
 checkpolicy:  writing binary representation <span class="o">(</span>version 29<span class="o">)</span> to sepolicy.new
-<span class="nv">$ </span>sediff -q --stats sepolicy <span class="se">\;</span> sepolicy.new
-<span class="nv">$ </span><span class="nb">echo</span> <span class="nv">$?</span>
+$ sediff -q --stats sepolicy <span class="se">\;</span> sepolicy.new
+$ <span class="nb">echo</span> <span class="nv">$?</span>
 0
 </pre></div>
 <table class="docutils footnote" frame="void" id="id3" rules="none">
@@ -668,7 +675,7 @@ one can build a <tt class="docutils literal">sepolicy</tt> out of Android source
 <p>Then, I dug further in the policy compilation process by analyzing the source
 code of <tt class="docutils literal">checkpolicy</tt>. We introduced data structures used to store these statements
 in memory and I presented briefly the file format of an SELinux kernel policy.
-The <tt class="docutils literal">sepolicy</tt> binary is simply a serialized version of a <code class="cpp"><span class="kt">policydb_t</span></code>
+The <tt class="docutils literal">sepolicy</tt> binary is simply a serialized version of a <code class="cpp"><span class="n">policydb_t</span></code>
 structure, built from parsing the <tt class="docutils literal">policy.conf</tt> file.</p>
 <p>Finally, I introduced a proof-of-concept tool, <a class="reference external" href="https://github.com/ge0n0sis/sedump/">sedump</a>, to decompile or
 deserialize a <tt class="docutils literal">sepolicy</tt> binary into a text file <tt class="docutils literal">policy.conf</tt>, and, to my
@@ -710,7 +717,7 @@ mainline.</p>
         <div class="col-lg-9 text-center">
             <p><small>
                 Built by <a href="http://docs.getpelican.com/en/latest">Pelican</a> / <a href="https://github.com/ingwinlu/pelican-twitchy">pelican-twitchy</a>
-                &middot;                    &copy; 2015 ge0n0sis
+                &middot;                    &copy; 2016 ge0n0sis
             </small></p>
         </div>
     </div>

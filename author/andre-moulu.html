@@ -9,7 +9,7 @@
         <meta name="description" content="" />
 
 
-    <title>ge0n0sis.github.io</title>
+    <title>ge0n0sis.github.io - Articles by André MOULU</title>
 
         <link rel="stylesheet" href="https://ge0n0sis.github.io/theme/css/bootstrap.min.css" type="text/css" />
 
@@ -172,10 +172,89 @@
         <!-- Page Content -->
         <div id="page-content-wrapper">
             <div class="container-fluid">
-<ul>
-    <li><a href="https://ge0n0sis.github.io/category/bootloader.html">bootloader</a></li>
-    <li><a href="https://ge0n0sis.github.io/category/seandroid.html">seandroid</a></li>
-</ul>
+<section id="content" class="body">
+    <div class="row">
+        <div class="col-lg-9">
+            <div class="jumbotron">  
+                <div class="row">
+                    <div class="col-lg-12">
+                        <h1>ge0n0sis.github.io</h1>
+                        <p></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-lg-9">
+            <h2>Recent Articles:</h2>
+        </div>
+    </div>
+</section>
+<div class="row">
+    <div class="col-lg-9">
+            <article>
+                <h2>
+                    <a href="https://ge0n0sis.github.io/posts/2016/05/how-to-lock-the-samsung-download-mode-using-an-undocumented-feature-of-aboot/">How to lock the samsung download mode using an undocumented feature of aboot</a>
+<div class="post-info">
+    <div class="publish-info-block">
+        <small>
+            <span class="published">
+                <i class="fa fa-calendar padding-small"></i><time datetime="2016-05-25T00:00:00+02:00"> mer. 25 mai 2016</time>
+            </span>
+            <span class="category">
+                <i class="fa fa-folder-open padding-small"></i><a href="https://ge0n0sis.github.io/category/bootloader.html">bootloader</a>
+            </span>
+            <span class="tags">
+                <i class="fa fa-tags padding-small"></i>
+                <a href="https://ge0n0sis.github.io/tag/android.html">android</a> /                 <a href="https://ge0n0sis.github.io/tag/bootloader.html">bootloader</a> /                 <a href="https://ge0n0sis.github.io/tag/forensic.html">forensic</a> /                 <a href="https://ge0n0sis.github.io/tag/samsung.html">samsung</a> /                 <a href="https://ge0n0sis.github.io/tag/aboot.html">aboot</a>            </span>
+        </small>
+    </div>
+</div><!-- /.post-info -->                </h2>
+                <div class="summary">
+                    <p class="first last">This article explains how to reverse engineer Samsung's proprietary bootloader a.k.a. aboot and describes an
+undocumented feature which allows an end user to lock his bootloader and to prevent someone from using the download
+mode without his consent.</p>
+
+                </div>
+            </article>
+            <hr/>
+            <article>
+                <h2>
+                    <a href="https://ge0n0sis.github.io/posts/2015/12/exploring-androids-selinux-kernel-policy/">Exploring Android's SELinux Kernel Policy</a>
+<div class="post-info">
+    <div class="publish-info-block">
+        <small>
+            <span class="published">
+                <i class="fa fa-calendar padding-small"></i><time datetime="2015-12-22T00:00:00+01:00"> mar. 22 décembre 2015</time>
+            </span>
+            <span class="category">
+                <i class="fa fa-folder-open padding-small"></i><a href="https://ge0n0sis.github.io/category/seandroid.html">seandroid</a>
+            </span>
+            <span class="tags">
+                <i class="fa fa-tags padding-small"></i>
+                <a href="https://ge0n0sis.github.io/tag/android.html">android</a> /                 <a href="https://ge0n0sis.github.io/tag/selinux.html">selinux</a> /                 <a href="https://ge0n0sis.github.io/tag/seandroid.html">seandroid</a> /                 <a href="https://ge0n0sis.github.io/tag/sedump.html">sedump</a>            </span>
+        </small>
+    </div>
+</div><!-- /.post-info -->                </h2>
+                <div class="summary">
+                    <p class="first last">SELinux is part of the Android security model since Android 4.3. This article
+covers various aspects of the SELinux kernel policy in Android. I
+have dissected how the monolithic policy file is created in current
+Android's version. While analyzing <tt class="docutils literal">checkpolicy</tt> source code, I digress
+a little on the policy file format. Finally, I present a tool to
+decompile a <tt class="docutils literal">sepolicy</tt> file into a semantically equivalent
+set of SELinux statements (and which can be compiled back into a <tt class="docutils literal">sepolicy</tt>!).</p>
+
+                </div>
+            </article>
+        <div class="btn-more text-right">
+            <a class="btn btn-default btn-xs twitchy-background" href="https://ge0n0sis.github.io/archives.html">
+                View all Articles ...
+            </a>
+        </div>
+    </div>
+</div>
 <footer>
     <hr>
     <div class="row">
@@ -214,5 +293,22 @@
         })();
     </script>
     <!-- End Google Analytics Code -->
+<script>
+    function FadeInOnScroll(ObjectList){
+        ObjectList.each(function(i) {
+            var bottom_of_object = $(this).position().top + $(this).outerHeight();
+            var bottom_of_window = $(window).scrollTop() + $(window).height();
+
+            if( bottom_of_window > bottom_of_object ){
+                $(this).fadeTo(750,1);
+            }
+        });
+    }
+    articles = $("article").fadeTo(0, 0.05);
+    FadeInOnScroll(articles)
+    $(window).scroll(function() {
+        FadeInOnScroll(articles)
+    });
+</script>
 </body>
 </html>
