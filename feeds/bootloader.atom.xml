@@ -124,9 +124,9 @@ Looking at the hexdump output, this buffer of 64 bytes is not human readable and
 &lt;div class="figure align-center"&gt;
 &lt;img alt="whitebox tables" src="/static/images/aboot/wb_table.png"/&gt;
 &lt;/div&gt;
-&lt;p&gt;One of the inner function called by &lt;code class="cpp"&gt;&lt;span class="n"&gt;transform_data&lt;/span&gt;&lt;/code&gt; is a substitution on a 16 bytes array, which reminds SubBytes operation in AES:&lt;/p&gt;
+&lt;p&gt;One of the inner function called by &lt;code class="cpp"&gt;&lt;span class="n"&gt;transform_data&lt;/span&gt;&lt;/code&gt; is a substitution on a 16 bytes array, which reminds invShiftRows operation in AES:&lt;/p&gt;
 &lt;div class="figure align-center"&gt;
-&lt;img alt="kind of subbytes function" src="/static/images/aboot/subbytes.png"/&gt;
+&lt;img alt="kind of invShiftRows function" src="/static/images/aboot/invShiftRows.png"/&gt;
 &lt;/div&gt;
 &lt;p&gt;It seems that we are indeed in presence of cryptography, probably AES related. It looks like a &lt;a class="reference external" href="http://www.whiteboxcrypto.com"&gt;whitebox cryptography&lt;/a&gt; implementation as we only have tables but no hardcoded key.&lt;/p&gt;
 &lt;p&gt;Instead of reverse engineering these functions, which can be time consuming without symbols, let's try to search for binaries related to them:&lt;/p&gt;
