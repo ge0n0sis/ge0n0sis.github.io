@@ -178,11 +178,11 @@ Multiple functions are called inside :cpp:`transform_data` and it seems to initi
     :align: center
     :alt: whitebox tables
 
-One of the inner function called by :cpp:`transform_data` is a substitution on a 16 bytes array, which reminds SubBytes operation in AES:
+One of the inner function called by :cpp:`transform_data` is a substitution on a 16 bytes array, which reminds invShiftRows operation in AES:
 
-.. figure:: /static/images/aboot/subbytes.png
+.. figure:: /static/images/aboot/invShiftRows.png
     :align: center
-    :alt: kind of subbytes function
+    :alt: kind of invShiftRows function
 
 It seems that we are indeed in presence of cryptography, probably AES related. It looks like a `whitebox cryptography <http://www.whiteboxcrypto.com>`_ implementation as we only have tables but no hardcoded key.
 
